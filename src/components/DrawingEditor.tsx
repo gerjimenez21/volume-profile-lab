@@ -1,15 +1,19 @@
 import {
-  drawingLabel,
-  type Drawing,
-} from '../lib/drawings'
+  Cog6ToothIcon,
+  TrashIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline'
+import { drawingLabel, type Drawing } from '../lib/drawings'
 
 interface Props {
   drawing: Drawing | null
   onPatch: (id: string, patch: Partial<Drawing>) => void
   onDelete: (id: string) => void
   onDeselect: () => void
+  onOpenFullEditor?: (drawing: Drawing) => void
 }
 
+/** Compact floating bar — does not block the chart (unlike a modal drawer). */
 export function DrawingEditor({
   drawing,
   onPatch,
@@ -49,13 +53,17 @@ export function DrawingEditor({
       <button
         type="button"
         className="danger"
+        title="Borrar"
         onClick={() => onDelete(drawing.id)}
       >
-        Borrar
+        <TrashIcon />
       </button>
-      <button type="button" onClick={onDeselect}>
-        Listo
+      <button type="button" title="Cerrar" onClick={onDeselect}>
+        <XMarkIcon />
       </button>
+      <span className="drawing-editor-hint">
+        <Cog6ToothIcon /> Arrastrá para mover · Delete borra
+      </span>
     </div>
   )
 }

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ChartBarIcon } from '@heroicons/react/24/outline'
+import { ChartLegend } from './components/ChartLegend'
 import { DrawingEditor } from './components/DrawingEditor'
 import { DrawingToolbar } from './components/DrawingToolbar'
-import { IndicatorSettingsPanel } from './components/IndicatorSettingsPanel'
+import { IndicatorEditorDrawer } from './components/IndicatorEditorDrawer'
+import { IndicatorsBrowserDrawer } from './components/IndicatorsBrowserDrawer'
 import { PriceChart, type ProfileMode } from './components/PriceChart'
 import { SymbolPicker } from './components/SymbolPicker'
+import type { IndicatorId } from './lib/indicatorCatalog'
 import {
   loadDrawings,
   removeDrawing,
@@ -55,10 +59,16 @@ export default function App() {
   const [profileWidthPct, setProfileWidthPct] = useState(0.28)
   const [indicators, setIndicators] =
     useState<IndicatorFlags>(DEFAULT_INDICATORS)
+  const [hiddenIndicators, setHiddenIndicators] = useState<
+    Partial<Record<IndicatorId, boolean>>
+  >({})
   const [settings, setSettings] = useState<IndicatorSettings>(() =>
     loadIndicatorSettings(),
   )
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [browserOpen, setBrowserOpen] = useState(false)
+  const [editingId, setEditingId] = useState<IndicatorId | null>(null)
+  const [selectedIndicatorId, setSelectedIndicatorId] =
+    useState<IndicatorId | null>(null)
 
   const [favorites, setFavorites] = useState<string[]>(() => loadFavorites())
   const [drawTool, setDrawTool] = useState<DrawingTool>('cursor')
@@ -117,9 +127,58 @@ export default function App() {
   const selectedDrawing =
     drawings.find((d) => d.id === selectedDrawingId) ?? null
 
-  const toggleIndicator = (key: keyof IndicatorFlags) => {
-    setIndicators((prev) => ({ ...prev, [key]: !prev[key] }))
+  const setIndicator = (id: IndicatorId, value: boolean) => {
+    setIndicators((prev) => ({ ...prev, [id]: value }))
+    if (value) {
+      setHiddenIndicators((prev) => ({ ...prev, [id]: false }))
+    }
   }
+
+  const toggleIndicator = (id: IndicatorId) => {
+    setIndicator(id, !indicators[id])
+  }
+
+  const removeIndicator = (id: IndicatorId) => {
+    setIndicator(id, false)
+    setHiddenIndicators((prev) => ({ ...prev, [id]: false }))
+    if (editingId === id) setEditingId(null)
+    if (selectedIndicatorId === id) setSelectedIndicatorId(null)
+  }
+
+  const openEditor = (id: IndicatorId) => {
+    setBrowserOpen(false)
+    setSelectedIndicatorId(id)
+    setSelectedDrawingId(null)
+    setEditingId(id)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT')
+      ) {
+        return
+      }
+      if (e.key === 'Escape') {
+        setSelectedIndicatorId(null)
+        return
+      }
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        selectedIndicatorId &&
+        !selectedDrawingId
+      ) {
+        e.preventDefault()
+        removeIndicator(selectedIndicatorId)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedIndicatorId, selectedDrawingId])
 
   const isFavorite = favorites.includes(symbol)
   const last = candles[candles.length - 1]
@@ -198,15 +257,19 @@ export default function App() {
           </div>
           <button
             type="button"
-            className="settings-btn"
-            onClick={() => setSettingsOpen(true)}
+            className="settings-btn indicators-launch"
+            onClick={() => {
+              setEditingId(null)
+              setBrowserOpen(true)
+            }}
           >
-            Indicadores ⚙
+            <ChartBarIcon />
+            Indicadores
           </button>
         </div>
       </section>
 
-      {indicators.volumeProfile && (
+      {indicators.volumeProfile && !hiddenIndicators.volumeProfile && (
         <section className="controls">
           <label>
             Modo perfil
@@ -287,16 +350,23 @@ export default function App() {
         />
 
         <div className="stage">
-          <DrawingEditor
-            drawing={selectedDrawing}
-            onPatch={(id, patch) =>
-              handleDrawingsChange(updateDrawing(drawings, id, patch))
-            }
-            onDelete={(id) => {
-              handleDrawingsChange(removeDrawing(drawings, id))
+          <ChartLegend
+            flags={indicators}
+            hidden={hiddenIndicators}
+            settings={settings}
+            selectedId={selectedIndicatorId}
+            onSelect={(id) => {
               setSelectedDrawingId(null)
+              setSelectedIndicatorId(id)
             }}
-            onDeselect={() => setSelectedDrawingId(null)}
+            onToggleHidden={(id) =>
+              setHiddenIndicators((prev) => ({
+                ...prev,
+                [id]: !prev[id],
+              }))
+            }
+            onEdit={openEditor}
+            onRemove={removeIndicator}
           />
           {error && <div className="banner error">{error}</div>}
           {!error && candles.length > 0 && (
@@ -308,33 +378,64 @@ export default function App() {
               showDelta={showDelta}
               profileWidthPct={profileWidthPct}
               indicators={indicators}
+              hiddenIndicators={hiddenIndicators}
               settings={settings}
               drawTool={drawTool}
               drawColor={drawColor}
               drawings={drawings}
               selectedDrawingId={selectedDrawingId}
               onDrawingsChange={handleDrawingsChange}
-              onSelectDrawing={setSelectedDrawingId}
+              onSelectDrawing={(id) => {
+                setSelectedDrawingId(id)
+                if (id) setSelectedIndicatorId(null)
+              }}
+              selectedIndicatorId={selectedIndicatorId}
+              onSelectIndicator={setSelectedIndicatorId}
+              onEditIndicator={openEditor}
             />
           )}
           {!error && !loading && candles.length === 0 && (
             <div className="banner">Sin datos</div>
           )}
+          <DrawingEditor
+            drawing={selectedDrawing}
+            onPatch={(id, patch) =>
+              handleDrawingsChange(updateDrawing(drawings, id, patch))
+            }
+            onDelete={(id) => {
+              handleDrawingsChange(removeDrawing(drawings, id))
+              setSelectedDrawingId(null)
+            }}
+            onDeselect={() => setSelectedDrawingId(null)}
+          />
         </div>
-
-        <IndicatorSettingsPanel
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          flags={indicators}
-          settings={settings}
-          onChange={setSettings}
-          onToggle={toggleIndicator}
-        />
       </main>
 
+      <IndicatorsBrowserDrawer
+        open={browserOpen}
+        onClose={() => setBrowserOpen(false)}
+        flags={indicators}
+        onToggle={toggleIndicator}
+        onOpenSettings={(id) => {
+          setIndicator(id, true)
+          openEditor(id)
+        }}
+      />
+
+      <IndicatorEditorDrawer
+        open={Boolean(editingId)}
+        indicatorId={editingId}
+        flags={indicators}
+        settings={settings}
+        onClose={() => setEditingId(null)}
+        onChange={setSettings}
+        onToggle={toggleIndicator}
+        onRemove={removeIndicator}
+      />
+
       <footer className="footnote">
-        Paneles separados estilo Investing/TradingView. Dibujos e indicadores
-        se guardan en este navegador. Favoritos con ★. Charts:{' '}
+        Menús de indicadores al estilo TradingView (drawers). Leyenda con ojo /
+        engranaje / quitar. Charts:{' '}
         <a
           href="https://www.tradingview.com/"
           target="_blank"

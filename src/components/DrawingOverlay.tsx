@@ -212,13 +212,11 @@ export function DrawingOverlay({
     if (paneEl) ro.observe(paneEl)
     chart.timeScale().subscribeVisibleLogicalRangeChange(draw)
     series.subscribeDataChanged(draw)
-    const raf = window.setInterval(draw, 250)
 
     return () => {
       ro.disconnect()
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(draw)
       series.unsubscribeDataChanged(draw)
-      window.clearInterval(raf)
     }
   }, [chart, series, color, drawings, selectedId, draft])
 
@@ -228,7 +226,9 @@ export function DrawingOverlay({
 
     const creating = tool === 'hline' || tool === 'trend' || tool === 'rect'
     const syncPointerMode = (overDrawing: boolean) => {
-      if (creating || dragRef.current || overDrawing || selectedRef.current) {
+      // Never keep the canvas "always on" just because something is selected —
+      // that blocks pan/zoom and indicator clicks across the whole chart.
+      if (creating || dragRef.current || overDrawing) {
         canvas.style.pointerEvents = 'auto'
         canvas.style.cursor = creating
           ? 'crosshair'
@@ -236,12 +236,11 @@ export function DrawingOverlay({
             ? 'pointer'
             : 'default'
       } else {
-        // Let the chart pan/zoom when the cursor isn't on a drawing.
         canvas.style.pointerEvents = 'none'
         canvas.style.cursor = 'default'
       }
     }
-    syncPointerMode(Boolean(selectedRef.current))
+    syncPointerMode(false)
 
     const localPoint = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect()
@@ -272,7 +271,7 @@ export function DrawingOverlay({
         return
       }
       const hit = hitTestDrawing(projectedRef.current, pt)
-      syncPointerMode(Boolean(hit || selectedRef.current))
+      syncPointerMode(Boolean(hit))
     }
 
     const onPointerDown = (e: MouseEvent) => {
@@ -376,7 +375,7 @@ export function DrawingOverlay({
 
       if (tool === 'cursor') {
         const hit = hitTestDrawing(projectedRef.current, pt)
-        syncPointerMode(Boolean(hit || selectedRef.current))
+        syncPointerMode(Boolean(hit))
       }
 
       const current = draftRef.current
@@ -391,7 +390,7 @@ export function DrawingOverlay({
     const onPointerUp = () => {
       dragRef.current = null
       if (tool === 'cursor') {
-        syncPointerMode(Boolean(selectedRef.current))
+        syncPointerMode(false)
       }
     }
 

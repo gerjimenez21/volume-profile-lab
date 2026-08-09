@@ -281,6 +281,17 @@
   font-size: 0.82rem;
 }
 
+.indicators-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.indicators-launch svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
 .star-btn {
   width: 2rem;
   height: 2rem;
@@ -419,8 +430,14 @@
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.draw-toolbar button svg {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .draw-toolbar button:hover,
@@ -458,23 +475,24 @@
 
 .drawing-editor {
   position: absolute;
-  top: 0.65rem;
-  left: 0.65rem;
-  z-index: 25;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.4rem;
   align-items: center;
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.55rem;
-  border: 1px solid rgba(61, 139, 253, 0.45);
+  max-width: min(420px, calc(100% - 1rem));
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(41, 98, 255, 0.45);
   background: rgba(16, 24, 34, 0.94);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
 }
 
 .drawing-editor strong {
-  font-size: 0.78rem;
-  margin-right: 0.15rem;
+  font-size: 0.75rem;
 }
 
 .drawing-editor label {
@@ -482,12 +500,12 @@
   align-items: center;
   gap: 0.3rem;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 
 .drawing-editor input[type='color'] {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.45rem;
+  height: 1.45rem;
   padding: 0;
   border: none;
   background: transparent;
@@ -498,19 +516,27 @@
   border: 1px solid var(--line);
   background: var(--bg);
   color: var(--text);
-  border-radius: 0.35rem;
-  padding: 0.2rem 0.35rem;
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.3rem;
   font: inherit;
 }
 
 .drawing-editor button {
+  width: 1.7rem;
+  height: 1.7rem;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
-  border-radius: 0.4rem;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.75rem;
+  border-radius: 0.35rem;
   cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.drawing-editor button svg {
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 .drawing-editor button.danger {
@@ -518,8 +544,457 @@
   color: #ffb4b0;
 }
 
-.drawing-editor button:hover {
-  border-color: rgba(61, 139, 253, 0.55);
+.drawing-editor-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #787b86;
+  font-size: 0.65rem;
+}
+
+.drawing-editor-hint svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.chart-legend {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  pointer-events: none;
+}
+
+.chart-legend-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.25rem 0.15rem 0.4rem;
+  border-radius: 0.3rem;
+  background: rgba(19, 23, 34, 0.78);
+  color: #d1d4dc;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.chart-legend-item.is-hidden {
+  opacity: 0.45;
+}
+
+.chart-legend-item.is-selected {
+  background: rgba(41, 98, 255, 0.28);
+  border-color: rgba(41, 98, 255, 0.7);
+  color: #fff;
+}
+
+.chart-legend-item.is-selected .chart-legend-actions {
+  opacity: 1;
+}
+
+.chart-legend-label {
+  user-select: none;
+}
+
+.chart-legend-actions {
+  display: flex;
+  gap: 0.05rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.chart-legend-item:hover .chart-legend-actions {
+  opacity: 1;
+}
+
+.chart-legend-actions button {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: #b2b5be;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.chart-legend-actions button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.chart-legend-actions svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* TradingView-like drawers */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.tv-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #1e222d;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.45);
+  animation: drawer-in 0.18s ease-out;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(18px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.tv-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tv-drawer-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.tv-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tv-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tv-icon-btn {
+  width: 1.85rem;
+  height: 1.85rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #b2b5be;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.tv-icon-btn svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.tv-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.tv-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.4rem;
+  background: #2a2e39;
+  color: #d1d4dc;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.tv-btn.primary {
+  background: #2962ff;
+  border-color: #2962ff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.tv-btn.ghost {
+  background: transparent;
+}
+
+.tv-btn.danger-outline {
+  border-color: rgba(242, 54, 69, 0.45);
+  color: #f23645;
+  background: transparent;
+  width: 100%;
+}
+
+.tv-btn:hover {
+  filter: brightness(1.08);
+}
+
+.ind-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 420px;
+}
+
+.ind-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.85rem 1rem 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.45rem;
+  background: #131722;
+}
+
+.ind-search-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: #787b86;
+  flex: 0 0 auto;
+}
+
+.ind-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #d1d4dc;
+  font: inherit;
+  outline: none;
+}
+
+.ind-browser-layout {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  min-height: 0;
+  flex: 1;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ind-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: #191d27;
+}
+
+.ind-sidebar button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #b2b5be;
+  text-align: left;
+  padding: 0.5rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ind-sidebar button svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.ind-sidebar button.active,
+.ind-sidebar button:hover {
+  background: rgba(41, 98, 255, 0.16);
+  color: #d1d4dc;
+}
+
+.ind-results {
+  overflow: auto;
+  padding: 0.35rem 0.35rem 1rem;
+}
+
+.ind-results h3 {
+  margin: 0.65rem 0.55rem 0.25rem;
+  color: #787b86;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ind-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ind-results li button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.45rem;
+  align-items: center;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #d1d4dc;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.ind-results li button:hover,
+.ind-results li button.active {
+  background: #2962ff;
+  color: #fff;
+}
+
+.ind-results mark {
+  background: transparent;
+  color: #5b9cff;
+  font-weight: 700;
+}
+
+.ind-results li button:hover mark,
+.ind-results li button.active mark {
+  color: #fff;
+}
+
+.ind-short {
+  color: #787b86;
+  font-size: 0.72rem;
+}
+
+.ind-results li button:hover .ind-short,
+.ind-results li button.active .ind-short {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.ind-badge {
+  font-style: normal;
+  font-size: 0.65rem;
+  color: #26a69a;
+  background: rgba(38, 166, 154, 0.15);
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+}
+
+.ind-results li button:hover .ind-badge,
+.ind-results li button.active .ind-badge {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ind-empty {
+  margin: 1rem;
+  color: #787b86;
+  font-size: 0.85rem;
+}
+
+.ind-editor-tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ind-editor-tabs button {
+  border: none;
+  background: transparent;
+  color: #787b86;
+  padding: 0.75rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.ind-editor-tabs button.active {
+  color: #d1d4dc;
+  border-bottom-color: #2962ff;
+}
+
+.ind-editor-content {
+  padding: 0.85rem 1rem 1rem;
+}
+
+.tv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tv-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  color: #b2b5be;
+  font-size: 0.82rem;
+}
+
+.tv-row input[type='number'],
+.tv-row input[type='text'],
+.tv-row select {
+  width: 110px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #131722;
+  color: #d1d4dc;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+}
+
+.tv-row input[type='color'] {
+  width: 2rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  cursor: pointer;
+}
+
+.tv-row input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2962ff;
+}
+
+.tv-help {
+  margin: 0;
+  color: #787b86;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.settings-drawer {
+  display: none;
 }
 
 .chart-shell {
@@ -538,11 +1013,17 @@
 }
 
 .vp-overlay,
-.draw-overlay {
+.draw-overlay,
+.bb-fill-overlay {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 2;
+}
+
+.bb-fill-overlay {
+  pointer-events: none;
+  z-index: 1;
 }
 
 .vp-overlay {

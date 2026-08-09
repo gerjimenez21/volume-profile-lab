@@ -14,6 +14,9 @@ export interface IndicatorSettings {
     midColor: string
     lowerColor: string
     lineWidth: 1 | 2 | 3 | 4
+    fillEnabled: boolean
+    fillColor: string
+    fillOpacity: number
   }
   volume: {
     upColor: string
@@ -59,6 +62,9 @@ export const DEFAULT_INDICATOR_SETTINGS: IndicatorSettings = {
     midColor: '#ffc107',
     lowerColor: '#2196f3',
     lineWidth: 1,
+    fillEnabled: true,
+    fillColor: '#2196f3',
+    fillOpacity: 0.12,
   },
   volume: {
     upColor: 'rgba(38, 166, 154, 0.55)',

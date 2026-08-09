@@ -63,12 +63,10 @@ export function PaneLabels({ chart, flags, settings }: Props) {
     const ro = new ResizeObserver(update)
     ro.observe(chart.chartElement())
     chart.timeScale().subscribeVisibleLogicalRangeChange(update)
-    const id = window.setInterval(update, 400)
 
     return () => {
       ro.disconnect()
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(update)
-      window.clearInterval(id)
     }
   }, [chart, flags, settings])
 

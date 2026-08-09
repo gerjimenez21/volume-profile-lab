@@ -13,9 +13,14 @@ import {
 } from 'lightweight-charts'
 import type { Drawing, DrawingTool } from '../lib/drawings'
 import type { IndicatorFlags, IndicatorSettings } from '../lib/indicatorTypes'
+import type { IndicatorId } from '../lib/indicatorCatalog'
 import { bollingerBands, macdSeries, rsiSeries } from '../lib/indicators'
 import type { Candle, VolumeProfileResult } from '../lib/types'
 import { computeVolumeProfile } from '../lib/volumeProfile'
+import {
+  BollingerFillOverlay,
+  type BandPoint,
+} from './BollingerFillOverlay'
 import { DrawingOverlay } from './DrawingOverlay'
 import { PaneLabels } from './PaneLabels'
 import { VolumeProfileOverlay } from './VolumeProfileOverlay'
@@ -30,6 +35,7 @@ interface Props {
   showDelta: boolean
   profileWidthPct: number
   indicators: IndicatorFlags
+  hiddenIndicators: Partial<Record<IndicatorId, boolean>>
   settings: IndicatorSettings
   drawTool: DrawingTool
   drawColor: string
@@ -37,6 +43,9 @@ interface Props {
   selectedDrawingId: string | null
   onDrawingsChange: (next: Drawing[]) => void
   onSelectDrawing: (id: string | null) => void
+  selectedIndicatorId: IndicatorId | null
+  onSelectIndicator: (id: IndicatorId | null) => void
+  onEditIndicator: (id: IndicatorId) => void
 }
 
 type SeriesBag = {
@@ -66,6 +75,7 @@ export function PriceChart({
   showDelta,
   profileWidthPct,
   indicators,
+  hiddenIndicators,
   settings,
   drawTool,
   drawColor,
@@ -73,13 +83,29 @@ export function PriceChart({
   selectedDrawingId,
   onDrawingsChange,
   onSelectDrawing,
+  selectedIndicatorId,
+  onSelectIndicator,
+  onEditIndicator,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<SeriesBag | null>(null)
   const rsiLinesRef = useRef<IPriceLine[]>([])
   const candlesRef = useRef(candles)
+  const seriesToIndicatorRef = useRef<Map<object, IndicatorId>>(new Map())
+  const drawToolRef = useRef(drawTool)
+  const indicatorsRef = useRef(indicators)
+  const hiddenRef = useRef(hiddenIndicators)
+  const onSelectDrawingRef = useRef(onSelectDrawing)
+  const onSelectIndicatorRef = useRef(onSelectIndicator)
+  const onEditIndicatorRef = useRef(onEditIndicator)
   candlesRef.current = candles
+  drawToolRef.current = drawTool
+  indicatorsRef.current = indicators
+  hiddenRef.current = hiddenIndicators
+  onSelectDrawingRef.current = onSelectDrawing
+  onSelectIndicatorRef.current = onSelectIndicator
+  onEditIndicatorRef.current = onEditIndicator
 
   const [chart, setChart] = useState<IChartApi | null>(null)
   const [candleSeries, setCandleSeries] =
@@ -216,6 +242,15 @@ export function PriceChart({
       macdSignal,
       macdHist,
     }
+    seriesToIndicatorRef.current = new Map<object, IndicatorId>()
+    seriesToIndicatorRef.current.set(bbUpper, 'bollinger')
+    seriesToIndicatorRef.current.set(bbMid, 'bollinger')
+    seriesToIndicatorRef.current.set(bbLower, 'bollinger')
+    seriesToIndicatorRef.current.set(volume, 'volume')
+    seriesToIndicatorRef.current.set(rsi, 'rsi')
+    seriesToIndicatorRef.current.set(macdLine, 'macd')
+    seriesToIndicatorRef.current.set(macdSignal, 'macd')
+    seriesToIndicatorRef.current.set(macdHist, 'macd')
     chartRef.current = chartApi
     setChart(chartApi)
     setCandleSeries(candle)
@@ -239,11 +274,52 @@ export function PriceChart({
       setVisibleSlice(all.slice(from, to + 1))
     }
 
+    const resolveClick = (paneIndex?: number, hovered?: object | null) => {
+      if (drawToolRef.current !== 'cursor') return null
+      const show = (id: IndicatorId) =>
+        Boolean(indicatorsRef.current[id] && !hiddenRef.current[id])
+
+      if (hovered) {
+        const mapped = seriesToIndicatorRef.current.get(hovered)
+        if (mapped && show(mapped)) return mapped
+      }
+      if (paneIndex === 1 && show('volume')) return 'volume'
+      if (paneIndex === 2 && show('rsi')) return 'rsi'
+      if (paneIndex === 3 && show('macd')) return 'macd'
+      return null
+    }
+
+    const onClick = (param: {
+      paneIndex?: number
+      hoveredSeries?: object
+    }) => {
+      if (drawToolRef.current !== 'cursor') return
+      const id = resolveClick(param.paneIndex, param.hoveredSeries ?? null)
+      onSelectDrawingRef.current(null)
+      onSelectIndicatorRef.current(id)
+    }
+
+    const onDblClick = (param: {
+      paneIndex?: number
+      hoveredSeries?: object
+    }) => {
+      if (drawToolRef.current !== 'cursor') return
+      const id = resolveClick(param.paneIndex, param.hoveredSeries ?? null)
+      if (!id) return
+      onSelectDrawingRef.current(null)
+      onSelectIndicatorRef.current(id)
+      onEditIndicatorRef.current(id)
+    }
+
     chartApi.timeScale().subscribeVisibleLogicalRangeChange(syncVisible)
+    chartApi.subscribeClick(onClick)
+    chartApi.subscribeDblClick(onDblClick)
     requestAnimationFrame(syncVisible)
 
     return () => {
       chartApi.timeScale().unsubscribeVisibleLogicalRangeChange(syncVisible)
+      chartApi.unsubscribeClick(onClick)
+      chartApi.unsubscribeDblClick(onDblClick)
       chartApi.remove()
       chartRef.current = null
       seriesRef.current = null
@@ -322,43 +398,69 @@ export function PriceChart({
     const s = seriesRef.current
     if (!s) return
 
+    const show = (id: IndicatorId) =>
+      Boolean(indicators[id] && !hiddenIndicators[id])
+    const selected = (id: IndicatorId) => selectedIndicatorId === id
+    const widthBoost = (id: IndicatorId, base: 1 | 2 | 3 | 4): 1 | 2 | 3 | 4 => {
+      if (!selected(id)) return base
+      return Math.min(4, base + 1) as 1 | 2 | 3 | 4
+    }
+
     s.bbUpper.applyOptions({
       color: settings.bollinger.upperColor,
-      lineWidth: settings.bollinger.lineWidth,
-      visible: indicators.bollinger,
+      lineWidth: widthBoost('bollinger', settings.bollinger.lineWidth),
+      visible: show('bollinger'),
+      lastValueVisible: selected('bollinger'),
+      crosshairMarkerVisible: selected('bollinger'),
     })
     s.bbMid.applyOptions({
       color: settings.bollinger.midColor,
-      lineWidth: settings.bollinger.lineWidth,
-      visible: indicators.bollinger,
+      lineWidth: widthBoost('bollinger', settings.bollinger.lineWidth),
+      visible: show('bollinger'),
+      lastValueVisible: selected('bollinger'),
+      crosshairMarkerVisible: selected('bollinger'),
     })
     s.bbLower.applyOptions({
       color: settings.bollinger.lowerColor,
-      lineWidth: settings.bollinger.lineWidth,
-      visible: indicators.bollinger,
+      lineWidth: widthBoost('bollinger', settings.bollinger.lineWidth),
+      visible: show('bollinger'),
+      lastValueVisible: selected('bollinger'),
+      crosshairMarkerVisible: selected('bollinger'),
     })
 
-    s.volume.applyOptions({ visible: indicators.volume })
+    s.volume.applyOptions({
+      visible: show('volume'),
+      lastValueVisible: selected('volume'),
+    })
     s.rsi.applyOptions({
-      visible: indicators.rsi,
+      visible: show('rsi'),
       color: settings.rsi.color,
-      lineWidth: settings.rsi.lineWidth,
+      lineWidth: widthBoost('rsi', settings.rsi.lineWidth),
+      lastValueVisible: true,
+      crosshairMarkerVisible: selected('rsi'),
     })
     s.macdLine.applyOptions({
-      visible: indicators.macd,
+      visible: show('macd'),
       color: settings.macd.macdColor,
-      lineWidth: settings.macd.lineWidth,
+      lineWidth: widthBoost('macd', settings.macd.lineWidth),
+      lastValueVisible: selected('macd'),
+      crosshairMarkerVisible: selected('macd'),
     })
     s.macdSignal.applyOptions({
-      visible: indicators.macd,
+      visible: show('macd'),
       color: settings.macd.signalColor,
-      lineWidth: settings.macd.lineWidth,
+      lineWidth: widthBoost('macd', settings.macd.lineWidth),
+      lastValueVisible: selected('macd'),
+      crosshairMarkerVisible: selected('macd'),
     })
-    s.macdHist.applyOptions({ visible: indicators.macd })
+    s.macdHist.applyOptions({
+      visible: show('macd'),
+      lastValueVisible: selected('macd'),
+    })
 
     for (const line of rsiLinesRef.current) s.rsi.removePriceLine(line)
     rsiLinesRef.current = []
-    if (indicators.rsi) {
+    if (show('rsi')) {
       rsiLinesRef.current = [
         s.rsi.createPriceLine({
           price: settings.rsi.overbought,
@@ -391,16 +493,16 @@ export function PriceChart({
     if (!chartApi) return
     const panes = chartApi.panes()
     panes[0]?.setStretchFactor(3.2)
-    panes[1]?.setStretchFactor(indicators.volume ? 1 : 0.0001)
-    panes[2]?.setStretchFactor(indicators.rsi ? 1.15 : 0.0001)
-    panes[3]?.setStretchFactor(indicators.macd ? 1.25 : 0.0001)
-    if (panes[1]) panes[1].setHeight(indicators.volume ? 130 : 0)
-    if (panes[2]) panes[2].setHeight(indicators.rsi ? 140 : 0)
-    if (panes[3]) panes[3].setHeight(indicators.macd ? 150 : 0)
-  }, [indicators, settings])
+    panes[1]?.setStretchFactor(show('volume') ? 1 : 0.0001)
+    panes[2]?.setStretchFactor(show('rsi') ? 1.15 : 0.0001)
+    panes[3]?.setStretchFactor(show('macd') ? 1.25 : 0.0001)
+    if (panes[1]) panes[1].setHeight(show('volume') ? 130 : 0)
+    if (panes[2]) panes[2].setHeight(show('rsi') ? 140 : 0)
+    if (panes[3]) panes[3].setHeight(show('macd') ? 150 : 0)
+  }, [indicators, hiddenIndicators, settings, selectedIndicatorId])
 
   const profile: VolumeProfileResult | null = useMemo(() => {
-    if (!indicators.volumeProfile) return null
+    if (!indicators.volumeProfile || hiddenIndicators.volumeProfile) return null
     const source = profileMode === 'visible' ? visibleSlice : candles
     return computeVolumeProfile(source, { rowCount, valueAreaPct: 0.7 })
   }, [
@@ -409,12 +511,55 @@ export function PriceChart({
     profileMode,
     rowCount,
     indicators.volumeProfile,
+    hiddenIndicators.volumeProfile,
+  ])
+
+  const labelFlags: IndicatorFlags = {
+    bollinger: indicators.bollinger && !hiddenIndicators.bollinger,
+    volume: indicators.volume && !hiddenIndicators.volume,
+    volumeProfile:
+      indicators.volumeProfile && !hiddenIndicators.volumeProfile,
+    rsi: indicators.rsi && !hiddenIndicators.rsi,
+    macd: indicators.macd && !hiddenIndicators.macd,
+  }
+
+  const bollingerFillPoints: BandPoint[] = useMemo(() => {
+    if (!labelFlags.bollinger || !settings.bollinger.fillEnabled) return []
+    const bb = bollingerBands(
+      candles,
+      settings.bollinger.period,
+      settings.bollinger.mult,
+    )
+    const n = Math.min(bb.upper.length, bb.lower.length)
+    const out: BandPoint[] = []
+    for (let i = 0; i < n; i++) {
+      out.push({
+        time: bb.upper[i].time,
+        upper: bb.upper[i].value,
+        lower: bb.lower[i].value,
+      })
+    }
+    return out
+  }, [
+    candles,
+    labelFlags.bollinger,
+    settings.bollinger.fillEnabled,
+    settings.bollinger.period,
+    settings.bollinger.mult,
   ])
 
   return (
     <div className="chart-shell">
       <div ref={containerRef} className="chart-canvas" />
-      <PaneLabels chart={chart} flags={indicators} settings={settings} />
+      <BollingerFillOverlay
+        chart={chart}
+        series={candleSeries}
+        points={bollingerFillPoints}
+        enabled={labelFlags.bollinger && settings.bollinger.fillEnabled}
+        color={settings.bollinger.fillColor}
+        opacity={settings.bollinger.fillOpacity}
+      />
+      <PaneLabels chart={chart} flags={labelFlags} settings={settings} />
       <VolumeProfileOverlay
         chart={chart}
         series={candleSeries}
@@ -422,7 +567,7 @@ export function PriceChart({
         widthPct={profileWidthPct}
         showValueArea={showValueArea}
         showDelta={showDelta}
-        enabled={indicators.volumeProfile}
+        enabled={labelFlags.volumeProfile}
         buyColor={settings.volumeProfile.buyColor}
         sellColor={settings.volumeProfile.sellColor}
         pocColor={settings.volumeProfile.pocColor}

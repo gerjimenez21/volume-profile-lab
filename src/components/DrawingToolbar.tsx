@@ -1,3 +1,10 @@
+import {
+  ArrowPathRoundedSquareIcon,
+  ArrowsPointingOutIcon,
+  CursorArrowRaysIcon,
+  MinusIcon,
+  TrashIcon,
+} from '@heroicons/react/24/outline'
 import type { DrawingTool } from '../lib/drawings'
 
 interface Props {
@@ -10,11 +17,19 @@ interface Props {
   onColorChange: (color: string) => void
 }
 
-const TOOLS: Array<{ id: DrawingTool; label: string; title: string }> = [
-  { id: 'cursor', label: '↖', title: 'Seleccionar / mover' },
-  { id: 'hline', label: '―', title: 'Línea horizontal' },
-  { id: 'trend', label: '/', title: 'Línea de tendencia' },
-  { id: 'rect', label: '▭', title: 'Rectángulo' },
+const TOOLS: Array<{
+  id: DrawingTool
+  title: string
+  Icon: typeof CursorArrowRaysIcon
+}> = [
+  { id: 'cursor', title: 'Seleccionar / mover', Icon: CursorArrowRaysIcon },
+  { id: 'hline', title: 'Línea horizontal', Icon: MinusIcon },
+  {
+    id: 'trend',
+    title: 'Línea de tendencia',
+    Icon: ArrowPathRoundedSquareIcon,
+  },
+  { id: 'rect', title: 'Rectángulo', Icon: ArrowsPointingOutIcon },
 ]
 
 export function DrawingToolbar({
@@ -28,15 +43,15 @@ export function DrawingToolbar({
 }: Props) {
   return (
     <aside className="draw-toolbar" aria-label="Herramientas de dibujo">
-      {TOOLS.map((t) => (
+      {TOOLS.map(({ id, title, Icon }) => (
         <button
-          key={t.id}
+          key={id}
           type="button"
-          title={t.title}
-          className={tool === t.id ? 'active' : undefined}
-          onClick={() => onChange(t.id)}
+          title={title}
+          className={tool === id ? 'active' : undefined}
+          onClick={() => onChange(id)}
         >
-          {t.label}
+          <Icon />
         </button>
       ))}
       <label className="draw-color" title="Color de dibujo nuevo">
@@ -59,7 +74,7 @@ export function DrawingToolbar({
           else onClearAll()
         }}
       >
-        ⌫
+        <TrashIcon />
       </button>
     </aside>
   )
