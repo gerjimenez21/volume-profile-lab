@@ -11,12 +11,18 @@ interface Props {
   showValueArea?: boolean
   showDelta?: boolean
   enabled?: boolean
+  buyColor?: string
+  sellColor?: string
+  pocColor?: string
 }
 
-/**
- * Canvas overlay that draws a horizontal volume histogram on the right
- * of the price pane, aligned to the candlestick price scale.
- */
+function fade(color: string, amount: number): string {
+  const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/i)
+  if (!m) return color
+  const a = Number(m[4] ?? 1) * amount
+  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a})`
+}
+
 export function VolumeProfileOverlay({
   chart,
   series,
@@ -25,6 +31,9 @@ export function VolumeProfileOverlay({
   showValueArea = true,
   showDelta = true,
   enabled = true,
+  buyColor = 'rgba(38, 166, 154, 0.55)',
+  sellColor = 'rgba(239, 83, 80, 0.55)',
+  pocColor = 'rgba(255, 193, 7, 0.95)',
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -89,13 +98,9 @@ export function VolumeProfileOverlay({
         if (showDelta && bin.volume > 0) {
           const buyW = (bin.buyVolume / bin.volume) * barW
           const sellW = barW - buyW
-          ctx.fillStyle = inValueArea
-            ? 'rgba(38, 166, 154, 0.55)'
-            : 'rgba(38, 166, 154, 0.28)'
+          ctx.fillStyle = inValueArea ? buyColor : fade(buyColor, 0.5)
           ctx.fillRect(left, top, buyW, height)
-          ctx.fillStyle = inValueArea
-            ? 'rgba(239, 83, 80, 0.55)'
-            : 'rgba(239, 83, 80, 0.28)'
+          ctx.fillStyle = inValueArea ? sellColor : fade(sellColor, 0.5)
           ctx.fillRect(left + buyW, top, sellW, height)
         } else {
           ctx.fillStyle = inValueArea
@@ -105,13 +110,13 @@ export function VolumeProfileOverlay({
         }
 
         if (isPoc) {
-          ctx.fillStyle = 'rgba(255, 193, 7, 0.95)'
+          ctx.fillStyle = pocColor
           ctx.fillRect(left, top, Math.max(barW, 2), height)
         }
       }
 
       const markers: Array<{ price: number; label: string; color: string }> = [
-        { price: profile.poc, label: 'POC', color: '#ffc107' },
+        { price: profile.poc, label: 'POC', color: pocColor },
       ]
       if (showValueArea) {
         markers.push(
@@ -160,7 +165,18 @@ export function VolumeProfileOverlay({
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(draw)
       series.unsubscribeDataChanged(draw)
     }
-  }, [chart, series, profile, widthPct, showValueArea, showDelta, enabled])
+  }, [
+    chart,
+    series,
+    profile,
+    widthPct,
+    showValueArea,
+    showDelta,
+    enabled,
+    buyColor,
+    sellColor,
+    pocColor,
+  ])
 
   return <canvas ref={canvasRef} className="vp-overlay" aria-hidden />
 }

@@ -1,10 +1,29 @@
 import { useCallback, useEffect, useState } from 'react'
+import { DrawingEditor } from './components/DrawingEditor'
+import { DrawingToolbar } from './components/DrawingToolbar'
+import { IndicatorSettingsPanel } from './components/IndicatorSettingsPanel'
 import { PriceChart, type ProfileMode } from './components/PriceChart'
 import { SymbolPicker } from './components/SymbolPicker'
+import {
+  loadDrawings,
+  removeDrawing,
+  saveDrawings,
+  updateDrawing,
+  type Drawing,
+  type DrawingTool,
+} from './lib/drawings'
+import {
+  loadFavorites,
+  saveFavorites,
+  toggleFavorite,
+} from './lib/favorites'
 import { formatPrice } from './lib/format'
 import {
   DEFAULT_INDICATORS,
+  loadIndicatorSettings,
+  saveIndicatorSettings,
   type IndicatorFlags,
+  type IndicatorSettings,
 } from './lib/indicatorTypes'
 import type { Candle, Timeframe } from './lib/types'
 import { fetchYahooChart } from './lib/yahoo'
@@ -36,6 +55,20 @@ export default function App() {
   const [profileWidthPct, setProfileWidthPct] = useState(0.28)
   const [indicators, setIndicators] =
     useState<IndicatorFlags>(DEFAULT_INDICATORS)
+  const [settings, setSettings] = useState<IndicatorSettings>(() =>
+    loadIndicatorSettings(),
+  )
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const [favorites, setFavorites] = useState<string[]>(() => loadFavorites())
+  const [drawTool, setDrawTool] = useState<DrawingTool>('cursor')
+  const [drawColor, setDrawColor] = useState('#f5d76e')
+  const [drawings, setDrawings] = useState<Drawing[]>(() =>
+    loadDrawings('GGAL.BA'),
+  )
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
+    null,
+  )
 
   const load = useCallback(async (ticker: string, tf: Timeframe) => {
     setLoading(true)
@@ -57,10 +90,38 @@ export default function App() {
     void load(symbol, timeframe)
   }, [symbol, timeframe, load])
 
+  useEffect(() => {
+    setDrawings(loadDrawings(symbol))
+    setSelectedDrawingId(null)
+  }, [symbol])
+
+  useEffect(() => {
+    saveIndicatorSettings(settings)
+  }, [settings])
+
+  useEffect(() => {
+    saveFavorites(favorites)
+  }, [favorites])
+
+  const handleDrawingsChange = (next: Drawing[]) => {
+    setDrawings(next)
+    saveDrawings(symbol, next)
+    if (
+      selectedDrawingId &&
+      !next.some((d) => d.id === selectedDrawingId)
+    ) {
+      setSelectedDrawingId(null)
+    }
+  }
+
+  const selectedDrawing =
+    drawings.find((d) => d.id === selectedDrawingId) ?? null
+
   const toggleIndicator = (key: keyof IndicatorFlags) => {
     setIndicators((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const isFavorite = favorites.includes(symbol)
   const last = candles[candles.length - 1]
   const prev = candles[candles.length - 2]
   const change =
@@ -77,15 +138,36 @@ export default function App() {
           </div>
         </div>
 
-        <SymbolPicker
-          value={symbol}
-          loading={loading}
-          onSelect={setSymbol}
-        />
+        <SymbolPicker value={symbol} loading={loading} onSelect={setSymbol} />
       </header>
+
+      <section className="favorites-bar" aria-label="Favoritos">
+        <span className="controls-label">Favoritos</span>
+        {favorites.length === 0 && (
+          <em className="fav-empty">Agregá activos con ★</em>
+        )}
+        {favorites.map((fav) => (
+          <button
+            key={fav}
+            type="button"
+            className={fav === symbol ? 'active' : undefined}
+            onClick={() => setSymbol(fav)}
+          >
+            {fav.replace('.BA', '')}
+          </button>
+        ))}
+      </section>
 
       <section className="toolbar">
         <div className="quote">
+          <button
+            type="button"
+            className={`star-btn ${isFavorite ? 'on' : ''}`}
+            title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            onClick={() => setFavorites((f) => toggleFavorite(f, symbol))}
+          >
+            {isFavorite ? '★' : '☆'}
+          </button>
           <strong>{symbol}</strong>
           {meta.shortName && <span>{meta.shortName}</span>}
           {last && (
@@ -101,40 +183,27 @@ export default function App() {
           )}
         </div>
 
-        <div className="tf-group" role="group" aria-label="Timeframe">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.id}
-              type="button"
-              className={tf.id === timeframe ? 'active' : undefined}
-              onClick={() => setTimeframe(tf.id)}
-            >
-              {tf.label}
-            </button>
-          ))}
+        <div className="toolbar-right">
+          <div className="tf-group" role="group" aria-label="Timeframe">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.id}
+                type="button"
+                className={tf.id === timeframe ? 'active' : undefined}
+                onClick={() => setTimeframe(tf.id)}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="settings-btn"
+            onClick={() => setSettingsOpen(true)}
+          >
+            Indicadores ⚙
+          </button>
         </div>
-      </section>
-
-      <section className="controls indicators-row">
-        <span className="controls-label">Indicadores</span>
-        {(
-          [
-            ['volumeProfile', 'Vol. Profile'],
-            ['bollinger', 'Bollinger'],
-            ['volume', 'Volumen'],
-            ['rsi', 'RSI'],
-            ['macd', 'MACD'],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="check">
-            <input
-              type="checkbox"
-              checked={indicators[key]}
-              onChange={() => toggleIndicator(key)}
-            />
-            {label}
-          </label>
-        ))}
       </section>
 
       {indicators.volumeProfile && (
@@ -196,35 +265,82 @@ export default function App() {
         </section>
       )}
 
-      <main className="stage">
-        {error && <div className="banner error">{error}</div>}
-        {!error && candles.length > 0 && (
-          <PriceChart
-            candles={candles}
-            rowCount={rowCount}
-            profileMode={profileMode}
-            showValueArea={showValueArea}
-            showDelta={showDelta}
-            profileWidthPct={profileWidthPct}
-            indicators={indicators}
+      <main className="workspace">
+        <DrawingToolbar
+          tool={drawTool}
+          onChange={(tool) => {
+            setDrawTool(tool)
+            if (tool !== 'cursor') setSelectedDrawingId(null)
+          }}
+          onClearAll={() => {
+            handleDrawingsChange([])
+            setSelectedDrawingId(null)
+          }}
+          onDeleteSelected={() => {
+            if (!selectedDrawingId) return
+            handleDrawingsChange(removeDrawing(drawings, selectedDrawingId))
+            setSelectedDrawingId(null)
+          }}
+          hasSelection={Boolean(selectedDrawingId)}
+          drawColor={drawColor}
+          onColorChange={setDrawColor}
+        />
+
+        <div className="stage">
+          <DrawingEditor
+            drawing={selectedDrawing}
+            onPatch={(id, patch) =>
+              handleDrawingsChange(updateDrawing(drawings, id, patch))
+            }
+            onDelete={(id) => {
+              handleDrawingsChange(removeDrawing(drawings, id))
+              setSelectedDrawingId(null)
+            }}
+            onDeselect={() => setSelectedDrawingId(null)}
           />
-        )}
-        {!error && !loading && candles.length === 0 && (
-          <div className="banner">Sin datos</div>
-        )}
+          {error && <div className="banner error">{error}</div>}
+          {!error && candles.length > 0 && (
+            <PriceChart
+              candles={candles}
+              rowCount={rowCount}
+              profileMode={profileMode}
+              showValueArea={showValueArea}
+              showDelta={showDelta}
+              profileWidthPct={profileWidthPct}
+              indicators={indicators}
+              settings={settings}
+              drawTool={drawTool}
+              drawColor={drawColor}
+              drawings={drawings}
+              selectedDrawingId={selectedDrawingId}
+              onDrawingsChange={handleDrawingsChange}
+              onSelectDrawing={setSelectedDrawingId}
+            />
+          )}
+          {!error && !loading && candles.length === 0 && (
+            <div className="banner">Sin datos</div>
+          )}
+        </div>
+
+        <IndicatorSettingsPanel
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          flags={indicators}
+          settings={settings}
+          onChange={setSettings}
+          onToggle={toggleIndicator}
+        />
       </main>
 
       <footer className="footnote">
-        Mercado por defecto: BYMA (Yahoo <code>.BA</code>). Escribí{' '}
-        <code>GGAL</code> y se carga como <code>GGAL.BA</code>. Bollinger
-        (20,2), RSI (14), MACD (12,26,9). Volume Profile estimado desde OHLCV
-        gratis — no es footprint tick-a-tick. Charts:{' '}
+        Paneles separados estilo Investing/TradingView. Dibujos e indicadores
+        se guardan en este navegador. Favoritos con ★. Charts:{' '}
         <a
           href="https://www.tradingview.com/"
           target="_blank"
           rel="noreferrer"
         >
-          Lightweight Charts de TradingView
+          Lightweight Charts
         </a>
         .
       </footer>

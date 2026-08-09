@@ -7,13 +7,17 @@ import {
   LineStyle,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import type { IndicatorFlags } from '../lib/indicatorTypes'
+import type { Drawing, DrawingTool } from '../lib/drawings'
+import type { IndicatorFlags, IndicatorSettings } from '../lib/indicatorTypes'
 import { bollingerBands, macdSeries, rsiSeries } from '../lib/indicators'
 import type { Candle, VolumeProfileResult } from '../lib/types'
 import { computeVolumeProfile } from '../lib/volumeProfile'
+import { DrawingOverlay } from './DrawingOverlay'
+import { PaneLabels } from './PaneLabels'
 import { VolumeProfileOverlay } from './VolumeProfileOverlay'
 
 export type ProfileMode = 'visible' | 'all'
@@ -26,6 +30,13 @@ interface Props {
   showDelta: boolean
   profileWidthPct: number
   indicators: IndicatorFlags
+  settings: IndicatorSettings
+  drawTool: DrawingTool
+  drawColor: string
+  drawings: Drawing[]
+  selectedDrawingId: string | null
+  onDrawingsChange: (next: Drawing[]) => void
+  onSelectDrawing: (id: string | null) => void
 }
 
 type SeriesBag = {
@@ -55,10 +66,18 @@ export function PriceChart({
   showDelta,
   profileWidthPct,
   indicators,
+  settings,
+  drawTool,
+  drawColor,
+  drawings,
+  selectedDrawingId,
+  onDrawingsChange,
+  onSelectDrawing,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<SeriesBag | null>(null)
+  const rsiLinesRef = useRef<IPriceLine[]>([])
   const candlesRef = useRef(candles)
   candlesRef.current = candles
 
@@ -73,19 +92,19 @@ export function PriceChart({
     const chartApi = createChart(containerRef.current, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#0f1720' },
+        background: { type: ColorType.Solid, color: '#131722' },
         textColor: '#d1d4dc',
         fontFamily: 'IBM Plex Sans, ui-sans-serif, system-ui, sans-serif',
-        // Logo on-chart is optional; licence attribution stays in the app footer.
         attributionLogo: false,
         panes: {
-          separatorColor: 'rgba(42, 46, 57, 0.95)',
-          separatorHoverColor: 'rgba(61, 139, 253, 0.45)',
+          separatorColor: '#000000',
+          separatorHoverColor: 'rgba(61, 139, 253, 0.55)',
+          enableResize: true,
         },
       },
       grid: {
-        vertLines: { color: 'rgba(42, 46, 57, 0.55)' },
-        horzLines: { color: 'rgba(42, 46, 57, 0.55)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.45)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.45)' },
       },
       crosshair: {
         mode: 0,
@@ -94,7 +113,7 @@ export function PriceChart({
       },
       rightPriceScale: {
         borderColor: 'rgba(42, 46, 57, 0.8)',
-        scaleMargins: { top: 0.06, bottom: 0.08 },
+        scaleMargins: { top: 0.08, bottom: 0.08 },
       },
       timeScale: {
         borderColor: 'rgba(42, 46, 57, 0.8)',
@@ -104,29 +123,29 @@ export function PriceChart({
     })
 
     const candle = chartApi.addSeries(CandlestickSeries, {
-      upColor: '#26a69a',
-      downColor: '#ef5350',
+      upColor: '#089981',
+      downColor: '#f23645',
       borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
+      wickUpColor: '#089981',
+      wickDownColor: '#f23645',
     })
 
     const bbUpper = chartApi.addSeries(LineSeries, {
-      color: 'rgba(33, 150, 243, 0.85)',
+      color: '#2196f3',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
     })
     const bbMid = chartApi.addSeries(LineSeries, {
-      color: 'rgba(255, 193, 7, 0.9)',
+      color: '#ffc107',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
     })
     const bbLower = chartApi.addSeries(LineSeries, {
-      color: 'rgba(33, 150, 243, 0.85)',
+      color: '#2196f3',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -156,30 +175,6 @@ export function PriceChart({
       },
       2,
     )
-    rsi.createPriceLine({
-      price: 70,
-      color: 'rgba(239, 83, 80, 0.55)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: '',
-    })
-    rsi.createPriceLine({
-      price: 30,
-      color: 'rgba(38, 166, 154, 0.55)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: '',
-    })
-    rsi.createPriceLine({
-      price: 50,
-      color: 'rgba(120, 123, 134, 0.45)',
-      lineWidth: 1,
-      lineStyle: LineStyle.Dotted,
-      axisLabelVisible: false,
-      title: '',
-    })
 
     const macdHist = chartApi.addSeries(
       HistogramSeries,
@@ -210,7 +205,7 @@ export function PriceChart({
       3,
     )
 
-    const bag: SeriesBag = {
+    seriesRef.current = {
       candle,
       volume,
       bbMid,
@@ -221,10 +216,16 @@ export function PriceChart({
       macdSignal,
       macdHist,
     }
-    seriesRef.current = bag
     chartRef.current = chartApi
     setChart(chartApi)
     setCandleSeries(candle)
+
+    // Investing-like proportions: big price pane, roomy oscillators.
+    const panes = chartApi.panes()
+    panes[0]?.setStretchFactor(3.2)
+    panes[1]?.setStretchFactor(1)
+    panes[2]?.setStretchFactor(1.15)
+    panes[3]?.setStretchFactor(1.25)
 
     const syncVisible = () => {
       const range = chartApi.timeScale().getVisibleLogicalRange()
@@ -246,6 +247,7 @@ export function PriceChart({
       chartApi.remove()
       chartRef.current = null
       seriesRef.current = null
+      rsiLinesRef.current = []
       setChart(null)
       setCandleSeries(null)
     }
@@ -272,54 +274,130 @@ export function PriceChart({
         value: c.volume,
         color:
           c.close >= c.open
-            ? 'rgba(38, 166, 154, 0.45)'
-            : 'rgba(239, 83, 80, 0.45)',
+            ? settings.volume.upColor
+            : settings.volume.downColor,
       })),
     )
 
-    const bb = bollingerBands(candles, 20, 2)
+    const bb = bollingerBands(
+      candles,
+      settings.bollinger.period,
+      settings.bollinger.mult,
+    )
     s.bbMid.setData(toLineData(bb.middle))
     s.bbUpper.setData(toLineData(bb.upper))
     s.bbLower.setData(toLineData(bb.lower))
 
-    s.rsi.setData(toLineData(rsiSeries(candles, 14)))
+    s.rsi.setData(toLineData(rsiSeries(candles, settings.rsi.period)))
 
-    const macd = macdSeries(candles, 12, 26, 9)
+    const macd = macdSeries(
+      candles,
+      settings.macd.fast,
+      settings.macd.slow,
+      settings.macd.signal,
+    )
     s.macdLine.setData(toLineData(macd.macd))
     s.macdSignal.setData(toLineData(macd.signal))
     s.macdHist.setData(
       macd.histogram.map((p) => ({
         time: p.time as UTCTimestamp,
         value: p.value,
-        color: p.color,
+        color:
+          p.value >= 0
+            ? settings.macd.histUpColor
+            : settings.macd.histDownColor,
       })),
     )
 
-    chartApi.timeScale().fitContent()
     setVisibleSlice(candles)
-  }, [candles])
+  }, [candles, settings])
 
   useEffect(() => {
     const chartApi = chartRef.current
-    const s = seriesRef.current
-    if (!chartApi || !s) return
+    if (!chartApi || candles.length === 0) return
+    chartApi.timeScale().fitContent()
+  }, [candles])
 
-    s.bbMid.applyOptions({ visible: indicators.bollinger })
-    s.bbUpper.applyOptions({ visible: indicators.bollinger })
-    s.bbLower.applyOptions({ visible: indicators.bollinger })
+  useEffect(() => {
+    const s = seriesRef.current
+    if (!s) return
+
+    s.bbUpper.applyOptions({
+      color: settings.bollinger.upperColor,
+      lineWidth: settings.bollinger.lineWidth,
+      visible: indicators.bollinger,
+    })
+    s.bbMid.applyOptions({
+      color: settings.bollinger.midColor,
+      lineWidth: settings.bollinger.lineWidth,
+      visible: indicators.bollinger,
+    })
+    s.bbLower.applyOptions({
+      color: settings.bollinger.lowerColor,
+      lineWidth: settings.bollinger.lineWidth,
+      visible: indicators.bollinger,
+    })
 
     s.volume.applyOptions({ visible: indicators.volume })
-    s.rsi.applyOptions({ visible: indicators.rsi })
-    s.macdLine.applyOptions({ visible: indicators.macd })
-    s.macdSignal.applyOptions({ visible: indicators.macd })
+    s.rsi.applyOptions({
+      visible: indicators.rsi,
+      color: settings.rsi.color,
+      lineWidth: settings.rsi.lineWidth,
+    })
+    s.macdLine.applyOptions({
+      visible: indicators.macd,
+      color: settings.macd.macdColor,
+      lineWidth: settings.macd.lineWidth,
+    })
+    s.macdSignal.applyOptions({
+      visible: indicators.macd,
+      color: settings.macd.signalColor,
+      lineWidth: settings.macd.lineWidth,
+    })
     s.macdHist.applyOptions({ visible: indicators.macd })
 
+    for (const line of rsiLinesRef.current) s.rsi.removePriceLine(line)
+    rsiLinesRef.current = []
+    if (indicators.rsi) {
+      rsiLinesRef.current = [
+        s.rsi.createPriceLine({
+          price: settings.rsi.overbought,
+          color: 'rgba(239, 83, 80, 0.55)',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: '',
+        }),
+        s.rsi.createPriceLine({
+          price: settings.rsi.oversold,
+          color: 'rgba(38, 166, 154, 0.55)',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: '',
+        }),
+        s.rsi.createPriceLine({
+          price: 50,
+          color: 'rgba(120, 123, 134, 0.4)',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: false,
+          title: '',
+        }),
+      ]
+    }
+
+    const chartApi = chartRef.current
+    if (!chartApi) return
     const panes = chartApi.panes()
-    // pane 0 = price; 1 = volume; 2 = RSI; 3 = MACD
-    if (panes[1]) panes[1].setHeight(indicators.volume ? 88 : 0)
-    if (panes[2]) panes[2].setHeight(indicators.rsi ? 96 : 0)
-    if (panes[3]) panes[3].setHeight(indicators.macd ? 110 : 0)
-  }, [indicators])
+    panes[0]?.setStretchFactor(3.2)
+    panes[1]?.setStretchFactor(indicators.volume ? 1 : 0.0001)
+    panes[2]?.setStretchFactor(indicators.rsi ? 1.15 : 0.0001)
+    panes[3]?.setStretchFactor(indicators.macd ? 1.25 : 0.0001)
+    if (panes[1]) panes[1].setHeight(indicators.volume ? 130 : 0)
+    if (panes[2]) panes[2].setHeight(indicators.rsi ? 140 : 0)
+    if (panes[3]) panes[3].setHeight(indicators.macd ? 150 : 0)
+  }, [indicators, settings])
 
   const profile: VolumeProfileResult | null = useMemo(() => {
     if (!indicators.volumeProfile) return null
@@ -336,6 +414,7 @@ export function PriceChart({
   return (
     <div className="chart-shell">
       <div ref={containerRef} className="chart-canvas" />
+      <PaneLabels chart={chart} flags={indicators} settings={settings} />
       <VolumeProfileOverlay
         chart={chart}
         series={candleSeries}
@@ -344,6 +423,19 @@ export function PriceChart({
         showValueArea={showValueArea}
         showDelta={showDelta}
         enabled={indicators.volumeProfile}
+        buyColor={settings.volumeProfile.buyColor}
+        sellColor={settings.volumeProfile.sellColor}
+        pocColor={settings.volumeProfile.pocColor}
+      />
+      <DrawingOverlay
+        chart={chart}
+        series={candleSeries}
+        tool={drawTool}
+        color={drawColor}
+        drawings={drawings}
+        selectedId={selectedDrawingId}
+        onChange={onDrawingsChange}
+        onSelect={onSelectDrawing}
       />
     </div>
   )
