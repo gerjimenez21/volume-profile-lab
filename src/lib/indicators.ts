@@ -44,6 +44,24 @@ export function smaSeries(
   return out
 }
 
+/** SMA of volume — used for “volumen sobre promedio” checklist. */
+export function volumeSmaSeries(
+  candles: Candle[],
+  period: number,
+): LinePoint[] {
+  const out: LinePoint[] = []
+  if (period < 1) return out
+  let sum = 0
+  for (let i = 0; i < candles.length; i++) {
+    sum += candles[i].volume
+    if (i >= period) sum -= candles[i - period].volume
+    if (i >= period - 1) {
+      out.push({ time: candles[i].time, value: sum / period })
+    }
+  }
+  return out
+}
+
 export function emaArray(values: number[], period: number): Array<number | null> {
   const out: Array<number | null> = Array(values.length).fill(null)
   if (values.length < period) return out

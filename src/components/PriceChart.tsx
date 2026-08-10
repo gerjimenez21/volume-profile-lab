@@ -9,12 +9,23 @@ import {
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type TickMarkType,
+  type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
 import type { Drawing, DrawingTool } from '../lib/drawings'
 import type { IndicatorFlags, IndicatorSettings } from '../lib/indicatorTypes'
 import type { IndicatorId } from '../lib/indicatorCatalog'
-import { bollingerBands, macdSeries, rsiSeries } from '../lib/indicators'
+import {
+  bollingerBands,
+  macdSeries,
+  rsiSeries,
+  volumeSmaSeries,
+} from '../lib/indicators'
+import {
+  formatCrosshairTime,
+  formatTickMark,
+} from '../lib/timezones'
 import type { Candle, VolumeProfileResult } from '../lib/types'
 import { computeVolumeProfile } from '../lib/volumeProfile'
 import {
@@ -22,7 +33,7 @@ import {
   type BandPoint,
 } from './BollingerFillOverlay'
 import { DrawingOverlay } from './DrawingOverlay'
-import { PaneLabels } from './PaneLabels'
+import { PaneLabels, type VolumeHoverInfo } from './PaneLabels'
 import { VolumeProfileOverlay } from './VolumeProfileOverlay'
 
 export type ProfileMode = 'visible' | 'all'
@@ -46,11 +57,13 @@ interface Props {
   selectedIndicatorId: IndicatorId | null
   onSelectIndicator: (id: IndicatorId | null) => void
   onEditIndicator: (id: IndicatorId) => void
+  timeZone: string
 }
 
 type SeriesBag = {
   candle: ISeriesApi<'Candlestick'>
   volume: ISeriesApi<'Histogram'>
+  volumeAvg: ISeriesApi<'Line'>
   bbMid: ISeriesApi<'Line'>
   bbUpper: ISeriesApi<'Line'>
   bbLower: ISeriesApi<'Line'>
@@ -86,6 +99,7 @@ export function PriceChart({
   selectedIndicatorId,
   onSelectIndicator,
   onEditIndicator,
+  timeZone,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -96,6 +110,7 @@ export function PriceChart({
   const drawToolRef = useRef(drawTool)
   const indicatorsRef = useRef(indicators)
   const hiddenRef = useRef(hiddenIndicators)
+  const timeZoneRef = useRef(timeZone)
   const onSelectDrawingRef = useRef(onSelectDrawing)
   const onSelectIndicatorRef = useRef(onSelectIndicator)
   const onEditIndicatorRef = useRef(onEditIndicator)
@@ -103,6 +118,7 @@ export function PriceChart({
   drawToolRef.current = drawTool
   indicatorsRef.current = indicators
   hiddenRef.current = hiddenIndicators
+  timeZoneRef.current = timeZone
   onSelectDrawingRef.current = onSelectDrawing
   onSelectIndicatorRef.current = onSelectIndicator
   onEditIndicatorRef.current = onEditIndicator
@@ -111,6 +127,8 @@ export function PriceChart({
   const [candleSeries, setCandleSeries] =
     useState<ISeriesApi<'Candlestick'> | null>(null)
   const [visibleSlice, setVisibleSlice] = useState<Candle[]>(candles)
+  const [volumeHover, setVolumeHover] = useState<VolumeHoverInfo | null>(null)
+  const volumeAvgByTimeRef = useRef<Map<number, number>>(new Map())
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -145,6 +163,13 @@ export function PriceChart({
         borderColor: 'rgba(42, 46, 57, 0.8)',
         timeVisible: true,
         secondsVisible: false,
+        tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) =>
+          formatTickMark(time as number, tickMarkType, timeZoneRef.current),
+      },
+      localization: {
+        locale: 'es-AR',
+        timeFormatter: (time: Time) =>
+          formatCrosshairTime(time as number, timeZoneRef.current),
       },
     })
 
@@ -184,6 +209,18 @@ export function PriceChart({
         priceFormat: { type: 'volume' },
         priceLineVisible: false,
         lastValueVisible: false,
+      },
+      1,
+    )
+    const volumeAvg = chartApi.addSeries(
+      LineSeries,
+      {
+        color: 'rgba(224, 227, 235, 0.75)',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        priceFormat: { type: 'volume' },
       },
       1,
     )
@@ -234,6 +271,7 @@ export function PriceChart({
     seriesRef.current = {
       candle,
       volume,
+      volumeAvg,
       bbMid,
       bbUpper,
       bbLower,
@@ -247,6 +285,7 @@ export function PriceChart({
     seriesToIndicatorRef.current.set(bbMid, 'bollinger')
     seriesToIndicatorRef.current.set(bbLower, 'bollinger')
     seriesToIndicatorRef.current.set(volume, 'volume')
+    seriesToIndicatorRef.current.set(volumeAvg, 'volume')
     seriesToIndicatorRef.current.set(rsi, 'rsi')
     seriesToIndicatorRef.current.set(macdLine, 'macd')
     seriesToIndicatorRef.current.set(macdSignal, 'macd')
@@ -316,10 +355,38 @@ export function PriceChart({
     chartApi.subscribeDblClick(onDblClick)
     requestAnimationFrame(syncVisible)
 
+    const syncVolumeHover = (time: number | null) => {
+      const all = candlesRef.current
+      if (all.length === 0) {
+        setVolumeHover(null)
+        return
+      }
+      let candle: Candle | undefined
+      if (time != null) {
+        candle = all.find((c) => c.time === time)
+      }
+      if (!candle) candle = all[all.length - 1]
+      setVolumeHover({
+        volume: candle.volume,
+        avg: volumeAvgByTimeRef.current.get(candle.time) ?? null,
+      })
+    }
+
+    const onCrosshair = (param: { time?: Time }) => {
+      const t =
+        param.time !== undefined && typeof param.time === 'number'
+          ? param.time
+          : null
+      syncVolumeHover(t)
+    }
+
+    chartApi.subscribeCrosshairMove(onCrosshair)
+
     return () => {
       chartApi.timeScale().unsubscribeVisibleLogicalRangeChange(syncVisible)
       chartApi.unsubscribeClick(onClick)
       chartApi.unsubscribeDblClick(onDblClick)
+      chartApi.unsubscribeCrosshairMove(onCrosshair)
       chartApi.remove()
       chartRef.current = null
       seriesRef.current = null
@@ -328,6 +395,22 @@ export function PriceChart({
       setCandleSeries(null)
     }
   }, [])
+
+  useEffect(() => {
+    const chartApi = chartRef.current
+    if (!chartApi) return
+    chartApi.applyOptions({
+      localization: {
+        locale: 'es-AR',
+        timeFormatter: (time: Time) =>
+          formatCrosshairTime(time as number, timeZone),
+      },
+      timeScale: {
+        tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) =>
+          formatTickMark(time as number, tickMarkType, timeZone),
+      },
+    })
+  }, [timeZone])
 
   useEffect(() => {
     const chartApi = chartRef.current
@@ -354,6 +437,22 @@ export function PriceChart({
             : settings.volume.downColor,
       })),
     )
+
+    const volAvg = volumeSmaSeries(candles, settings.volume.avgPeriod)
+    const avgMap = new Map<number, number>()
+    for (const p of volAvg) avgMap.set(p.time, p.value)
+    volumeAvgByTimeRef.current = avgMap
+    s.volumeAvg.setData(toLineData(volAvg))
+
+    const last = candles[candles.length - 1]
+    if (last) {
+      setVolumeHover({
+        volume: last.volume,
+        avg: avgMap.get(last.time) ?? null,
+      })
+    } else {
+      setVolumeHover(null)
+    }
 
     const bb = bollingerBands(
       candles,
@@ -431,6 +530,12 @@ export function PriceChart({
     s.volume.applyOptions({
       visible: show('volume'),
       lastValueVisible: selected('volume'),
+    })
+    s.volumeAvg.applyOptions({
+      visible: show('volume'),
+      color: settings.volume.avgColor,
+      lastValueVisible: selected('volume'),
+      crosshairMarkerVisible: selected('volume'),
     })
     s.rsi.applyOptions({
       visible: show('rsi'),
@@ -559,7 +664,12 @@ export function PriceChart({
         color={settings.bollinger.fillColor}
         opacity={settings.bollinger.fillOpacity}
       />
-      <PaneLabels chart={chart} flags={labelFlags} settings={settings} />
+      <PaneLabels
+        chart={chart}
+        flags={labelFlags}
+        settings={settings}
+        volumeHover={volumeHover}
+      />
       <VolumeProfileOverlay
         chart={chart}
         series={candleSeries}

@@ -26,7 +26,7 @@ export const INDICATOR_CATALOG: IndicatorCatalogItem[] = [
     shortName: 'Vol',
     category: 'volumen',
     keywords: ['volumen', 'volume', 'vol'],
-    description: 'Histograma de volumen por vela',
+    description: 'Histograma de volumen + promedio SMA al hover',
   },
   {
     id: 'volumeProfile',

@@ -284,7 +284,31 @@ function InputsTab({
     )
   }
 
-  if (id === 'volume' || id === 'volumeProfile') {
+  if (id === 'volume') {
+    return (
+      <div className="tv-form">
+        <Row label="Promedio (SMA)">
+          <input
+            type="number"
+            min={2}
+            max={200}
+            value={draft.volume.avgPeriod}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                volume: {
+                  ...draft.volume,
+                  avgPeriod: Number(e.target.value),
+                },
+              })
+            }
+          />
+        </Row>
+      </div>
+    )
+  }
+
+  if (id === 'volumeProfile') {
     return (
       <div className="tv-form">
         <p className="tv-help">
@@ -423,6 +447,17 @@ function StyleTab({
               setDraft({
                 ...draft,
                 volume: { ...draft.volume, downColor: withAlpha(c, 0.55) },
+              })
+            }
+          />
+        </Row>
+        <Row label="Línea promedio">
+          <ColorInput
+            value={toHex(draft.volume.avgColor)}
+            onChange={(c) =>
+              setDraft({
+                ...draft,
+                volume: { ...draft.volume, avgColor: withAlpha(c, 0.75) },
               })
             }
           />

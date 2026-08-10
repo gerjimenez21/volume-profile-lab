@@ -281,10 +281,36 @@
   font-size: 0.82rem;
 }
 
-.indicators-launch {
-  display: inline-flex;
+.tz-picker {
+  display: flex;
   align-items: center;
   gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.tz-picker select {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  max-width: 180px;
+  font: inherit;
+}
+
+.tz-clock {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: #9ec1ff;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .tz-picker span,
+  .tz-clock {
+    display: none;
+  }
 }
 
 .indicators-launch svg {
@@ -1047,6 +1073,11 @@
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.pane-label-vol {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .settings-drawer {

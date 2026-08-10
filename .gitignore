@@ -15,6 +15,12 @@ dist-ssr
 .env
 .env.*
 
+# Personal finance / trading data — NEVER commit
+data/
+**/portfolio.json
+**/portfolio.md
+.cursor/skills/merval-trading/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

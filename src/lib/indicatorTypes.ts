@@ -21,6 +21,8 @@ export interface IndicatorSettings {
   volume: {
     upColor: string
     downColor: string
+    avgPeriod: number
+    avgColor: string
   }
   rsi: {
     period: number
@@ -69,6 +71,8 @@ export const DEFAULT_INDICATOR_SETTINGS: IndicatorSettings = {
   volume: {
     upColor: 'rgba(38, 166, 154, 0.55)',
     downColor: 'rgba(239, 83, 80, 0.55)',
+    avgPeriod: 20,
+    avgColor: 'rgba(224, 227, 235, 0.75)',
   },
   rsi: {
     period: 14,

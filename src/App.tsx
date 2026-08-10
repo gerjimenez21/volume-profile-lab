@@ -30,6 +30,13 @@ import {
   type IndicatorSettings,
 } from './lib/indicatorTypes'
 import type { Candle, Timeframe } from './lib/types'
+import {
+  formatClock,
+  getTimeZoneMeta,
+  loadTimeZone,
+  saveTimeZone,
+  TIMEZONES,
+} from './lib/timezones'
 import { fetchYahooChart } from './lib/yahoo'
 import './App.css'
 
@@ -79,6 +86,15 @@ export default function App() {
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   )
+  const [timeZone, setTimeZone] = useState(() => loadTimeZone())
+  const [clock, setClock] = useState(() => formatClock(loadTimeZone()))
+
+  useEffect(() => {
+    saveTimeZone(timeZone)
+    setClock(formatClock(timeZone))
+    const id = window.setInterval(() => setClock(formatClock(timeZone)), 1000)
+    return () => window.clearInterval(id)
+  }, [timeZone])
 
   const load = useCallback(async (ticker: string, tf: Timeframe) => {
     setLoading(true)
@@ -243,6 +259,23 @@ export default function App() {
         </div>
 
         <div className="toolbar-right">
+          <label className="tz-picker" title="Huso horario del gráfico">
+            <span>Huso</span>
+            <select
+              value={timeZone}
+              onChange={(e) => setTimeZone(e.target.value)}
+              aria-label="Huso horario"
+            >
+              {TIMEZONES.map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.label}
+                </option>
+              ))}
+            </select>
+            <em className="tz-clock">
+              {clock} · {getTimeZoneMeta(timeZone).short}
+            </em>
+          </label>
           <div className="tf-group" role="group" aria-label="Timeframe">
             {TIMEFRAMES.map((tf) => (
               <button
@@ -392,6 +425,7 @@ export default function App() {
               selectedIndicatorId={selectedIndicatorId}
               onSelectIndicator={setSelectedIndicatorId}
               onEditIndicator={openEditor}
+              timeZone={timeZone}
             />
           )}
           {!error && !loading && candles.length === 0 && (

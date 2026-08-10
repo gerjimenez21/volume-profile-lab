@@ -1,0 +1,18 @@
+---
+description: Never commit or push Germán's personal trading/finance data to GitHub or remotes.
+alwaysApply: true
+---
+
+# Privacidad financiera
+
+Nunca subir, commitear ni pushear datos personales de inversión de Germán.
+
+**Incluye (no exhaustivo):**
+- Capital, saldos, money market, P&L
+- Posiciones, trades, órdenes, precios promedio
+- `data/portfolio.json`, `portfolio.md`, snapshots de cartera
+- Skill/local notes con historial IOL/Merval/PAMP
+
+**Permitido en el repo:** código del chart, indicadores, configs genéricas sin montos ni posiciones reales.
+
+Si hay duda → **no** incluir el archivo en el commit. Preferir `.gitignore` y skills personales en `~/.cursor/skills/`.
